@@ -1,20 +1,36 @@
 # Arvato Customer Segmentation
 
 # Introduction
-Explain the business case and questions we are trying to answer
+###*"How can the business client acquire more customers efficiently."*
+In this project, we use the attributes and demographics of the existing customers and
+check against the broader population to identify new customers for our client.
 
 # Files
 The project is organised as follows:
+
+## Data
 * `Udacity_AZDIAS_052018.csv`: Demographics data for the general population of Germany; 891 211 persons (rows) x 366 features (columns).
 * `Udacity_CUSTOMERS_052018.csv`: Demographics data for customers of a mail-order company; 191 652 persons (rows) x 369 features (columns).
 * `Udacity_MAILOUT_052018_TRAIN.csv`: Demographics data for individuals who were targets of a marketing campaign; 42 982 persons (rows) x 367 (columns).
 * `Udacity_MAILOUT_052018_TEST.csv`: Demographics data for individuals who were targets of a marketing campaign; 42 833 persons (rows) x 366 (columns).
 
 **TODO** Add the codes as well.
+## Code
+### `arvato_model`
+Contains the functions to use for EDA, plotting and ...**ADD**
 
-# Packages 
-What are the packages needed?
-`pandas`
+1. **`plot`**
+1. **`stats`**
+1. **`utils`**
+
+
+### Packages used
+1. `pandas`
+1. `numpy`
+1. `matplotlib`
+1. `seaborn`
+
+
 
 How do we run the code?
 
