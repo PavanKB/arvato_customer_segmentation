@@ -19,17 +19,30 @@ def get_na_summary(df, axis=0):
                          'na_perc': na_perc})
 
 
-def read_value_meta_data(file_path='data/DIAS Attributes - Values 2017.xlsx', sheet_name='Tabelle1'):
+def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx',
+                         attr_sheet_name='Tabelle1',
+                         info_file_path='data/DIAS Information Levels - Attributes 2017.xlsx',
+                         info_sheet_name='Komplett'
+                         ):
     """
     Read the meta data file
     :params file_path: The path of the excel file with meta data
     :params sheet_name: Sheet to read
     :return: The meta data as the data frame. All columns are read as string.
     """
-    meta_data = pd.read_excel(file_path, sheet_name=sheet_name, header=1, dtype=str).iloc[:, 1:]
+    meta_data = pd.read_excel(attr_file_path, sheet_name=attr_sheet_name, header=1, dtype=str).iloc[:, 1:]
     meta_data.fillna(method='ffill', inplace=True)
 
-    return meta_data
+    # We only need the information level and the attribute
+    info_data = pd.read_excel(info_file_path, sheet_name=info_sheet_name, header=1, dtype=str).iloc[:, 1:3]
+    info_data.fillna(method='ffill', inplace=True)
+
+    # Bug fix since the excel file is not properly formatted.
+    info_data.loc[info_data.Attribute=='AGER_TYP', 'Information level'] = 'Person'
+
+    meta_data = meta_data.merge(info_data, how='outer', on=['Attribute'])
+
+    return meta_data.loc[:, ['Information level', 'Attribute', 'Description', 'Value', 'Meaning']]
 
 
 def get_values_missing(meta_data, sep=','):
@@ -55,13 +68,19 @@ def get_values_missing_count(df, na_dict):
     missing_col_count_summary = {}
 
     for col in df.columns:
-        missing_col_count_summary[col] = df.loc[df[col].isin(na_dict[col]), :].shape[0]
-        
+        if col in na_dict:
+            missing_col_count_summary[col] = df.loc[df.loc[:, col].isin(na_dict[col]), :].shape[0]
+        else:
+            missing_col_count_summary[col] = 0
+
     missing_col_count_summary = pd.DataFrame.from_dict(missing_col_count_summary,
                                                        orient='index',
                                                        columns=['missing_count'])
-    missing_col_count_summary.index.names = ['attribute']
+    missing_col_count_summary['missing_perc'] = missing_col_count_summary['missing_count']/df.shape[0] * 100
+
+    missing_col_count_summary.index.names = ['Attribute']
     missing_col_count_summary.reset_index(inplace=True)
+    missing_col_count_summary.sort_values(by='missing_count', ascending=False, inplace=True)
 
     return missing_col_count_summary
 
