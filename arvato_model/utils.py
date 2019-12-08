@@ -143,10 +143,12 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     :return: Cleaned up data, names of columns dropped for NA, names of columns dropped for diversity,
     """
 
-    df.loc[:, 'EINGEFUEGT_AM'] = pd.to_datetime(df.loc[:, 'EINGEFUEGT_AM'], format='%Y-%m-%d %H:%M:%S')
     df.replace({'OST_WEST_KZ': {'O': '0', 'W': '1'}}, inplace=True)
 
     df.replace(['X', 'XX'], pd.np.nan, inplace=True)
+
+    # remove the indexing column and the time inserted column
+    df.drop(['LNR', 'EINGEFUEGT_AM'], axis=1, inplace=True)
 
     # Convert columns to number
     idx = ~df.columns.isin(['CAMEO_DEU_2015', 'EINGEFUEGT_AM', 'D19_LETZTER_KAUF_BRANCHE'])
