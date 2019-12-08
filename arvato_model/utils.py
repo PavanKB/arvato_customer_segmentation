@@ -150,6 +150,10 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     # remove the indexing column and the time inserted column
     df.drop(['LNR', 'EINGEFUEGT_AM'], axis=1, inplace=True)
 
+    # drop columns with not meta data
+    no_meta_cols = set(df.columns) - set(meta_data.Attribute)
+    df.drop(no_meta_cols, axis=1, inplace=True)
+
     # Convert columns to number
     idx = ~df.columns.isin(['CAMEO_DEU_2015', 'EINGEFUEGT_AM', 'D19_LETZTER_KAUF_BRANCHE'])
     df.iloc[:, idx] = df.iloc[:, idx].astype(float)
@@ -187,4 +191,16 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
         low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold, :].index
         df.drop(columns=low_div_col, inplace=True)
 
-    return df, cols_to_drop, rows_to_drop, low_div_col
+    return df, no_meta_cols, cols_to_drop, rows_to_drop, low_div_col
+
+
+def data_one_hot_encode(df, uq_val_thold=None):
+    """
+    This does the one hot encoding of the data
+    :params df: Data frame to be encoded
+    :params uq_val_thold: The unique value threshold for a column, beyond which it will be ignored.
+    """
+    no_encode_cols = ['ANZ_HAUSHALTE_AKTIV', 'ANZ_HH_TITEL', 'ANZ_PERSONEN', 'ANZ_TITEL', 'GEBURTSJAHR',
+                  'KBA13_ANZAHL_PKW', 'MIN_GEBAEUDEJAHR', 'ANREDE_KZ', 'BIP_FLAG', 'GREEN_AVANTGARDE',
+                  'KBA05_SEG6', 'OST_WEST_KZ', 'VERS_TYP']
+    one_hot_encode_cols = df.columns[~df.columns.isin(no_encode_cols)]

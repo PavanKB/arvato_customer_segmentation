@@ -20,6 +20,7 @@ The project is organised as follows:
 Attributes meta data file has some data as merged cells that needs to be handled.
 
 There also columns in data that are not represented in the meta data at all!
+We drop those columns- why> becasue we dont know how to treat them. 
 
 **TODO** Add the codes as well.
 ## Code
