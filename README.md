@@ -8,11 +8,18 @@ check against the broader population to identify new customers for our client.
 # Files
 The project is organised as follows:
 
+
+
 ## Data
 * `Udacity_AZDIAS_052018.csv`: Demographics data for the general population of Germany; 891 211 persons (rows) x 366 features (columns).
 * `Udacity_CUSTOMERS_052018.csv`: Demographics data for customers of a mail-order company; 191 652 persons (rows) x 369 features (columns).
 * `Udacity_MAILOUT_052018_TRAIN.csv`: Demographics data for individuals who were targets of a marketing campaign; 42 982 persons (rows) x 367 (columns).
 * `Udacity_MAILOUT_052018_TEST.csv`: Demographics data for individuals who were targets of a marketing campaign; 42 833 persons (rows) x 366 (columns).
+* `DIAS Attributes - Values 2017.xlsx`: 
+* `DIAS Information Levels - Attributes 2017.xlsx`: 
+Attributes meta data file has some data as merged cells that needs to be handled.
+
+There also columns in data that are not represented in the meta data at all!
 
 **TODO** Add the codes as well.
 ## Code
@@ -35,6 +42,8 @@ Contains the functions to use for EDA, plotting and ...**ADD**
 How do we run the code?
 
 # EDA
+
+
 Explore the data
 
 Plots etc
@@ -52,10 +61,12 @@ Uniqueness of the data in each columns
   interactivity=interactivity, compiler=compiler, result=result)
 ```
 We forced all columns to be of type str and checked the unique values for columns
-18 and 19 in azdias and customer.  Turns out there are X, XX. 
-We shall force them to be NA?
+18 and 19 in azdias and customer.  Turns out there are X, XX. We shall force them to be NA
 
+For the columns that are binary as per meta data - turn them to 0, 1 
 Also there is `OST_WEST_KZ` O,W
+
+Look for mixed types.
 
 1. NA Clean Up
 1. Drop the non-diverse columns.

@@ -39,19 +39,59 @@ def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx
     info_data = pd.read_excel(info_file_path, sheet_name=info_sheet_name, header=1, dtype=str).iloc[:, 1:3]
     info_data.fillna(method='ffill', inplace=True)
 
-    # Bug fix since the excel file is not properly formatted.
+    # Bug fixes since the excel file is not properly formatted.
+
+    # Tag to Household
+    untagged_attrb = ['D19_BANKEN_ANZ_12', 'D19_BANKEN_ANZ_24', 'D19_GESAMT_ANZ_12', 'D19_GESAMT_ANZ_24',
+                        'D19_TELKO_ANZ_12', 'D19_TELKO_ANZ_24', 'D19_VERSAND_ANZ_12', 'D19_VERSAND_ANZ_24',
+                        'D19_VERSI_ANZ_12', 'D19_VERSI_ANZ_24']
+
+    info_data = pd.concat([info_data,
+                           pd.DataFrame({'Information level': ['Household'] * len(untagged_attrb),
+                                         'Attribute': untagged_attrb}
+                                        )
+                           ])
+
+    # Tag to PLZ8
+    untagged_attrb = ['KBA13_CCM_3000', 'KBA13_CCM_3001']
+    info_data = pd.concat([info_data,
+                           pd.DataFrame({'Information level': ['PLZ8'] * len(untagged_attrb),
+                                         'Attribute': untagged_attrb}
+                                        )
+                           ])
+
+    # Other tags
+    info_data = pd.concat([info_data,
+                           pd.DataFrame({'Information level': ['Building', '125m x 125m Grid'],
+                                         'Attribute': ['BIP_FLAG', 'D19_LOTTO_RZ']}
+                                        )
+                           ])
+
     info_data.loc[info_data.Attribute=='AGER_TYP', 'Information level'] = 'Person'
+
+    # Drop the rows that don't have a information level or malformed attributes
+    na_info_idx = info_data.loc[:, 'Information level'].isna()
+    info_data.drop(info_data.loc[na_info_idx, :].index, inplace=True)
+
+    attr_idx = info_data.loc[:, 'Attribute'].isin(
+        ['D19_GESAMT_ANZ_12                                    D19_GESAMT_ANZ_24',
+         'D19_BANKEN_ ANZ_12             D19_BANKEN_ ANZ_24',
+         'D19_TELKO_ ANZ_12                  D19_TELKO_ ANZ_24',
+         'D19_VERSI_ ANZ_12                                       D19_VERSI_ ANZ_24',
+         'D19_VERSAND_ ANZ_12          D19_VERSAND_ ANZ_24']
+    )
+    info_data.drop(info_data.loc[attr_idx, :].index, inplace=True)
 
     meta_data = meta_data.merge(info_data, how='outer', on=['Attribute'])
 
     return meta_data.loc[:, ['Information level', 'Attribute', 'Description', 'Value', 'Meaning']]
 
 
-def get_values_missing(meta_data, sep=','):
+def get_values_missing(meta_data, sep=', '):
     """
     Read the meta data and for each column return the values used to indicate missing data.
     :params meta_data: data frame with the meta data of values
-    :params sep: The separator of values in `missing_val_col`
+    :params sep: The separator of values
     :return: a dictionary where the keys are column names and values are a list
     """
     x = meta_data.loc[meta_data.Meaning == 'unknown', ['Attribute', 'Value']]
@@ -102,9 +142,10 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     :params diversity_thold: diversity % threshold for columns
     :return: Cleaned up data, names of columns dropped for NA, names of columns dropped for diversity,
     """
-    
+
     df.loc[:, 'EINGEFUEGT_AM'] = pd.to_datetime(df.loc[:, 'EINGEFUEGT_AM'], format='%Y-%m-%d %H:%M:%S')
     df.replace({'OST_WEST_KZ': {'O': '0', 'W': '1'}}, inplace=True)
+
     df.replace(['X', 'XX'], pd.np.nan, inplace=True)
 
     # Convert columns to number
@@ -115,6 +156,11 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     na_dict = get_values_missing(meta_data, sep=', ')
     na_dict = {key: [float(i) for i in val] for key, val in na_dict.items()}
     df.replace(na_dict, pd.np.nan, inplace=True)
+
+    # convert the binary values to 0, 1 so that we don't need one-hot encoding
+    # we do this here after the missing value -> NA as 0 is a missing value for ANREDE_KZ
+    df.replace({'ANREDE_KZ': {'2': '0'}}, inplace=True)
+    df.replace({'VERS_TYP': {'2': '0'}}, inplace=True)
 
     # Remove cols with missing data
     cols_to_drop = None
@@ -133,7 +179,7 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     # Remove low diversity columns
     low_div_col = None
     if diversity_thold:
-        col_uq = df.iloc[:, 1:].apply(lambda x: len(x.unique()))
+        col_uq = df.iloc[:, 1:].nunique()
         shannon_idx = df.iloc[:, 1:].apply(stats.shannon_diversity_index)
         shannon_idx = shannon_idx / np.log(col_uq)
         low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold, :].index
