@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from . import stats
 
 
 def get_na_summary(df, axis=0):
@@ -84,3 +86,57 @@ def get_values_missing_count(df, na_dict):
 
     return missing_col_count_summary
 
+
+def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity_thold=None):
+    """
+    Performs all the data clean up in one function
+    1. Replace all missing values with NA
+    1. Remove NA rows and cols based on the threshold
+    1. Drop columns with low diversity
+    1. Drop columns with high correlation
+
+    :params df: The data frame to be cleaned
+    :params meta_data: Meta data of `df` that describes missing values
+    :params na_col_thold: NA % threshold for columns
+    :params na_row_thold: NA % threshold for rows
+    :params diversity_thold: diversity % threshold for columns
+    :return: Cleaned up data, names of columns dropped for NA, names of columns dropped for diversity,
+    """
+    
+    df.loc[:, 'EINGEFUEGT_AM'] = pd.to_datetime(df.loc[:, 'EINGEFUEGT_AM'], format='%Y-%m-%d %H:%M:%S')
+    df.replace({'OST_WEST_KZ': {'O': '0', 'W': '1'}}, inplace=True)
+    df.replace(['X', 'XX'], pd.np.nan, inplace=True)
+
+    # Convert columns to number
+    idx = ~df.columns.isin(['CAMEO_DEU_2015', 'EINGEFUEGT_AM', 'D19_LETZTER_KAUF_BRANCHE'])
+    df.iloc[:, idx] = df.iloc[:, idx].astype(float)
+
+    # Get the missing values and mark them as NA
+    na_dict = get_values_missing(meta_data, sep=', ')
+    na_dict = {key: [float(i) for i in val] for key, val in na_dict.items()}
+    df.replace(na_dict, pd.np.nan, inplace=True)
+
+    # Remove cols with missing data
+    cols_to_drop = None
+    if na_col_thold:
+        col_na_summary = get_na_summary(df)
+        cols_to_drop = col_na_summary.loc[col_na_summary.na_perc > na_col_thold, :].index
+        df.drop(list(cols_to_drop), axis=1, inplace=True)
+
+    # Remove rows with missing data
+    rows_to_drop = None
+    if na_row_thold:
+        row_na_summary = get_na_summary(df, axis=1)
+        rows_to_drop = row_na_summary.loc[row_na_summary.na_perc > na_row_thold, :].index
+        df.drop(list(rows_to_drop), axis=0, inplace=True)
+
+    # Remove low diversity columns
+    low_div_col = None
+    if diversity_thold:
+        col_uq = df.iloc[:, 1:].apply(lambda x: len(x.unique()))
+        shannon_idx = df.iloc[:, 1:].apply(stats.shannon_diversity_index)
+        shannon_idx = shannon_idx / np.log(col_uq)
+        low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold, :].index
+        df.drop(columns=low_div_col, inplace=True)
+
+    return df, cols_to_drop, rows_to_drop, low_div_col
