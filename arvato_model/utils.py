@@ -198,9 +198,18 @@ def data_one_hot_encode(df, uq_val_thold=None):
     """
     This does the one hot encoding of the data
     :params df: Data frame to be encoded
-    :params uq_val_thold: The unique value threshold for a column, beyond which it will be ignored.
+    :params uq_val_thold: The unique value threshold for a column, beyond which it will be ignored/dropped
+    :return: The modified data frame and list of dropped columns if any
     """
     no_encode_cols = ['ANZ_HAUSHALTE_AKTIV', 'ANZ_HH_TITEL', 'ANZ_PERSONEN', 'ANZ_TITEL', 'GEBURTSJAHR',
                   'KBA13_ANZAHL_PKW', 'MIN_GEBAEUDEJAHR', 'ANREDE_KZ', 'BIP_FLAG', 'GREEN_AVANTGARDE',
                   'KBA05_SEG6', 'OST_WEST_KZ', 'VERS_TYP']
     one_hot_encode_cols = df.columns[~df.columns.isin(no_encode_cols)]
+
+    col_to_drop = None
+    if uq_val_thold:
+        col_n_uq = df.loc[:, one_hot_encode_cols].nunique()
+        col_to_drop = col_n_uq[col_n_uq >= uq_val_thold]
+        df.drop(col_to_drop, axis=1, inplace=True)
+
+    return df, col_to_drop
