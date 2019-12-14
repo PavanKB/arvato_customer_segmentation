@@ -46,7 +46,7 @@ def shannon_diversity_index(x):
     return h
 
 
-def calc_chi2_stats(df_popl, df_cust, attributes, alpha=0.05):
+def calc_chi2_stats(df_popl, df_cust, attributes, alpha=0.05, exclude_na=True, use_perc=True):
     """
     Calculates the chi-sq stays for the attribute to compare the
     similarities between population and customer
@@ -58,15 +58,32 @@ def calc_chi2_stats(df_popl, df_cust, attributes, alpha=0.05):
     :return: The stats as tuple
     """
 
-    if not isinstance(attributes, (list)):
+    if not isinstance(attributes, list):
         attributes = [attributes]
 
     stats = {}
     for attribute in attributes:
-        contingency_table = [df_popl.loc[:, attribute].value_counts().sort_index().values,
-                             df_cust.loc[:, attribute].value_counts().sort_index().values
-                             ]
+
+        if exclude_na:
+            expected = df_popl.loc[:, attribute].dropna()
+            observed = df_cust.loc[:, attribute].dropna()
+        else:
+            expected = df_popl.loc[:, attribute]
+            observed = df_cust.loc[:, attribute]
+
+        if use_perc:
+            expected = expected.value_counts(normalize=True) * 100
+            observed = observed.value_counts(normalize=True) * 100
+        else:
+            expected = expected.value_counts(normalize=False)
+            observed = observed.value_counts(normalize=False)
+
+        contingency_table = pd.DataFrame.from_dict({'Popl': expected,
+                                                    'Cust': observed},
+                                                   orient='index').values
+
         stat, p, dof, _ = chi2_contingency(contingency_table)
-        stats[attribute] = {'stat': stat, 'p': p, 'dof': dof, 'Popl<>Cust': p <= alpha}
+        stats[attribute] = {'stat': stat, 'p': p, 'dof': dof, 'similar': p > alpha}
 
     return pd.DataFrame.from_dict(stats, orient='index')
+
