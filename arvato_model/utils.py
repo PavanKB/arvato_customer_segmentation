@@ -164,6 +164,9 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     na_dict = {key: [float(i) for i in val] for key, val in na_dict.items()}
     df.replace(na_dict, pd.np.nan, inplace=True)
 
+    # Birthday cant be 0
+    df.replace({'GEBURTSJAHR': 0}, pd.np.nan, inplace=True)
+
     # convert the binary values to 0, 1 so that we don't need one-hot encoding
     # we do this here after the missing value -> NA as 0 is a missing value for ANREDE_KZ
     df.replace({'ANREDE_KZ': {2: 0}}, inplace=True)
