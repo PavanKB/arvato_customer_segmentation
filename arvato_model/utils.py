@@ -15,7 +15,7 @@ def get_na_summary(df, axis=0):
 
     n_tot = df.shape[0] if axis == 0 else df.shape[1]
 
-    na_perc = na_count / n_tot * 100
+    na_perc = na_count / n_tot
 
     return pd.DataFrame({'na_count': na_count,
                          'na_perc': na_perc})
@@ -129,11 +129,18 @@ def get_values_missing_count(df, na_dict):
 
 def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity_thold=None):
     """
-    Performs all the data clean up in one function
-    1. Replace all missing values with NA
-    1. Remove NA rows and cols based on the threshold
-    1. Drop columns with low diversity
-    1. Drop columns with high correlation
+    Performs all the data clean up in one function.
+
+    NOTE: This function modifies the input df. no copies are made.
+
+    1. Encode OST_WEST_KZ - {'O': 0, 'W': 1}
+    1. Drop 'LNR', 'EINGEFUEGT_AM'
+    1. Drop columns that dont have meta data
+    1. Replace missing values with NA
+    1. Encode ANREDE_KZ, VERS_TYP  {2: 0}
+
+    1. Find NA rows and cols based on the threshold
+    1. Find columns with low diversity
 
     :params df: The data frame to be cleaned
     :params meta_data: Meta data of `df` that describes missing values
@@ -143,9 +150,7 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     :return: Cleaned up data, names of columns dropped for NA, names of columns dropped for diversity,
     """
 
-    df.replace({'OST_WEST_KZ': {'O': '0', 'W': '1'}}, inplace=True)
-
-    df.replace(['X', 'XX'], pd.np.nan, inplace=True)
+    df.replace({'OST_WEST_KZ': {'O': 0, 'W': 1}}, inplace=True)
 
     # remove the indexing column and the time inserted column
     df.drop(['LNR', 'EINGEFUEGT_AM'], axis=1, inplace=True)
@@ -154,10 +159,6 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     no_meta_cols = set(df.columns) - set(meta_data.Attribute)
     df.drop(no_meta_cols, axis=1, inplace=True)
 
-    # Convert columns to number
-    idx = ~df.columns.isin(['CAMEO_DEU_2015', 'EINGEFUEGT_AM', 'D19_LETZTER_KAUF_BRANCHE'])
-    df.iloc[:, idx] = df.iloc[:, idx].astype(float)
-
     # Get the missing values and mark them as NA
     na_dict = get_values_missing(meta_data, sep=', ')
     na_dict = {key: [float(i) for i in val] for key, val in na_dict.items()}
@@ -165,31 +166,28 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
 
     # convert the binary values to 0, 1 so that we don't need one-hot encoding
     # we do this here after the missing value -> NA as 0 is a missing value for ANREDE_KZ
-    df.replace({'ANREDE_KZ': {'2': '0'}}, inplace=True)
-    df.replace({'VERS_TYP': {'2': '0'}}, inplace=True)
+    df.replace({'ANREDE_KZ': {2: 0}}, inplace=True)
+    df.replace({'VERS_TYP': {2: 0}}, inplace=True)
 
     # Remove cols with missing data
     cols_to_drop = None
     if na_col_thold:
         col_na_summary = get_na_summary(df)
         cols_to_drop = col_na_summary.loc[col_na_summary.na_perc > na_col_thold, :].index
-        df.drop(list(cols_to_drop), axis=1, inplace=True)
 
     # Remove rows with missing data
     rows_to_drop = None
     if na_row_thold:
         row_na_summary = get_na_summary(df, axis=1)
         rows_to_drop = row_na_summary.loc[row_na_summary.na_perc > na_row_thold, :].index
-        df.drop(list(rows_to_drop), axis=0, inplace=True)
 
     # Remove low diversity columns
     low_div_col = None
     if diversity_thold:
-        col_uq = df.iloc[:, 1:].nunique()
-        shannon_idx = df.iloc[:, 1:].apply(stats.shannon_diversity_index)
+        col_uq = df.nunique()
+        shannon_idx = df.apply(stats.shannon_diversity_index)
         shannon_idx = shannon_idx / np.log(col_uq)
-        low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold, :].index
-        df.drop(columns=low_div_col, inplace=True)
+        low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold].index
 
     return df, no_meta_cols, cols_to_drop, rows_to_drop, low_div_col
 
@@ -213,3 +211,4 @@ def data_one_hot_encode(df, uq_val_thold=None):
         df.drop(col_to_drop, axis=1, inplace=True)
 
     return df, col_to_drop
+
