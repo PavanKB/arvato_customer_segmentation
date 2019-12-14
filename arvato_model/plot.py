@@ -76,4 +76,5 @@ def plot_data_dist_comp(df_popl, df_cust, col_names, n_col=4, n_row=4, fig_size=
         df_z = pd.concat([df_x, df_y], axis=0)
 
         df_z[col].groupby(df_z['Src']).value_counts(normalize=True).rename('Proportion').reset_index().pipe(
-            (sns.barplot, "data"), x=col, y='Proportion', hue='Src', ax=axes.flatten()[mapping[i]])
+            (sns.barplot, "data"), x=col, y='Proportion', hue='Src', hue_order=['Popl', 'Cust'],
+            ax=axes.flatten()[mapping[i]])

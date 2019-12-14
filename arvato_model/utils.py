@@ -43,8 +43,8 @@ def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx
 
     # Tag to Household
     untagged_attrb = ['D19_BANKEN_ANZ_12', 'D19_BANKEN_ANZ_24', 'D19_GESAMT_ANZ_12', 'D19_GESAMT_ANZ_24',
-                        'D19_TELKO_ANZ_12', 'D19_TELKO_ANZ_24', 'D19_VERSAND_ANZ_12', 'D19_VERSAND_ANZ_24',
-                        'D19_VERSI_ANZ_12', 'D19_VERSI_ANZ_24']
+                      'D19_TELKO_ANZ_12', 'D19_TELKO_ANZ_24', 'D19_VERSAND_ANZ_12', 'D19_VERSAND_ANZ_24',
+                      'D19_VERSI_ANZ_12', 'D19_VERSI_ANZ_24']
 
     info_data = pd.concat([info_data,
                            pd.DataFrame({'Information level': ['Household'] * len(untagged_attrb),
@@ -67,7 +67,7 @@ def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx
                                         )
                            ])
 
-    info_data.loc[info_data.Attribute=='AGER_TYP', 'Information level'] = 'Person'
+    info_data.loc[info_data.Attribute == 'AGER_TYP', 'Information level'] = 'Person'
 
     # Drop the rows that don't have a information level or malformed attributes
     na_info_idx = info_data.loc[:, 'Information level'].isna()
@@ -202,9 +202,9 @@ def data_one_hot_encode(df, uq_val_thold=None):
     :params uq_val_thold: The unique value threshold for a column, beyond which it will be ignored/dropped
     :return: The modified data frame and list of dropped columns if any
     """
-    no_encode_cols = ['ANZ_HAUSHALTE_AKTIV', 'ANZ_HH_TITEL', 'ANZ_PERSONEN', 'ANZ_TITEL', 'GEBURTSJAHR',
-                  'KBA13_ANZAHL_PKW', 'MIN_GEBAEUDEJAHR', 'ANREDE_KZ', 'BIP_FLAG', 'GREEN_AVANTGARDE',
-                  'KBA05_SEG6', 'OST_WEST_KZ', 'VERS_TYP']
+    no_encode_cols = ['ANZ_HAUSHALTE_AKTIV', 'ANZ_HH_TITEL', 'ANZ_PERSONEN', 'ANZ_TITEL',
+                      'KBA13_ANZAHL_PKW', 'ANREDE_KZ', 'BIP_FLAG', 'GREEN_AVANTGARDE',
+                      'KBA05_SEG6', 'OST_WEST_KZ', 'VERS_TYP']
     one_hot_encode_cols = df.columns[~df.columns.isin(no_encode_cols)]
 
     col_to_drop = None
@@ -215,3 +215,19 @@ def data_one_hot_encode(df, uq_val_thold=None):
 
     return df, col_to_drop
 
+
+def get_pca_component_wts(component_matrix, pc, sort_by='magnitude'):
+    label = 'PC-' + str(pc)
+    summary = pd.DataFrame(component_matrix.loc[label, :])
+
+    if sort_by == '+':
+        return summary.sort_values(label, ascending=False).loc[:, label]
+    elif sort_by == '-':
+        # we are just sorting ascending hoping that negative components show up.
+        # But there may be no negative components.
+        return summary.sort_values(label, ascending=True).loc[:, label]
+    elif sort_by == 'magnitude':
+        summary['abs'] = summary[label].abs()
+        return summary.sort_values('abs', ascending=False).loc[:, label]
+    else:
+        return summary.loc[:, label]
