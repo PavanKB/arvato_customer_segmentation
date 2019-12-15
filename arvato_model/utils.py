@@ -51,6 +51,15 @@ def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx
                                          'Attribute': untagged_attrb}
                                         )
                            ])
+    # Clear up the malformed values from the meta data
+    attr_idx = info_data.loc[:, 'Attribute'].isin(
+        ['D19_GESAMT_ANZ_12                                    D19_GESAMT_ANZ_24',
+         'D19_BANKEN_ ANZ_12             D19_BANKEN_ ANZ_24',
+         'D19_TELKO_ ANZ_12                  D19_TELKO_ ANZ_24',
+         'D19_VERSI_ ANZ_12                                       D19_VERSI_ ANZ_24',
+         'D19_VERSAND_ ANZ_12          D19_VERSAND_ ANZ_24']
+    )
+    info_data.drop(info_data.loc[attr_idx, :].index, inplace=True)
 
     # Tag to PLZ8
     untagged_attrb = ['KBA13_CCM_3000', 'KBA13_CCM_3001']
@@ -69,18 +78,9 @@ def read_value_meta_data(attr_file_path='data/DIAS Attributes - Values 2017.xlsx
 
     info_data.loc[info_data.Attribute == 'AGER_TYP', 'Information level'] = 'Person'
 
-    # Drop the rows that don't have a information level or malformed attributes
-    na_info_idx = info_data.loc[:, 'Information level'].isna()
-    info_data.drop(info_data.loc[na_info_idx, :].index, inplace=True)
-
-    attr_idx = info_data.loc[:, 'Attribute'].isin(
-        ['D19_GESAMT_ANZ_12                                    D19_GESAMT_ANZ_24',
-         'D19_BANKEN_ ANZ_12             D19_BANKEN_ ANZ_24',
-         'D19_TELKO_ ANZ_12                  D19_TELKO_ ANZ_24',
-         'D19_VERSI_ ANZ_12                                       D19_VERSI_ ANZ_24',
-         'D19_VERSAND_ ANZ_12          D19_VERSAND_ ANZ_24']
-    )
-    info_data.drop(info_data.loc[attr_idx, :].index, inplace=True)
+    # # Drop the rows that don't have a information level or malformed attributes
+    # na_info_idx = info_data.loc[:, 'Information level'].isna()
+    # info_data.drop(info_data.loc[na_info_idx, :].index, inplace=True)
 
     meta_data = meta_data.merge(info_data, how='outer', on=['Attribute'])
 
@@ -133,10 +133,12 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
 
     NOTE: This function modifies the input df. no copies are made.
 
+    1. Set 'LNR' as index
     1. Encode OST_WEST_KZ - {'O': 0, 'W': 1}
-    1. Drop 'LNR', 'EINGEFUEGT_AM'
-    1. Drop columns that dont have meta data
-    1. Replace missing values with NA
+    1. Drop 'EINGEFUEGT_AM'
+    1. Drop columns that don't have meta data
+    1. Replace missing values with NA,
+    1. Replace GEBURTSJAHR 0 with NA
     1. Encode ANREDE_KZ, VERS_TYP  {2: 0}
 
     1. Find NA rows and cols based on the threshold
@@ -153,7 +155,7 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
     df.replace({'OST_WEST_KZ': {'O': 0, 'W': 1}}, inplace=True)
 
     # remove the indexing column and the time inserted column
-    df.drop(['LNR', 'EINGEFUEGT_AM'], axis=1, inplace=True)
+    df.drop(['EINGEFUEGT_AM'], axis=1, inplace=True)
 
     # drop columns with not meta data
     no_meta_cols = set(df.columns) - set(meta_data.Attribute)
@@ -184,7 +186,7 @@ def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity
         row_na_summary = get_na_summary(df, axis=1)
         rows_to_drop = row_na_summary.loc[row_na_summary.na_perc > na_row_thold, :].index
 
-    # Remove low diversity columns
+    # Remove low diversity columns - USE WITH CARE - takes forever on large data set!
     low_div_col = None
     if diversity_thold:
         col_uq = df.nunique()
@@ -211,7 +213,6 @@ def data_one_hot_encode(df, uq_val_thold=None):
     if uq_val_thold:
         col_n_uq = df.loc[:, one_hot_encode_cols].nunique()
         col_to_drop = col_n_uq[col_n_uq >= uq_val_thold]
-        df.drop(col_to_drop, axis=1, inplace=True)
 
     return df, col_to_drop
 
