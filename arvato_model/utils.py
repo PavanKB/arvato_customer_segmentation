@@ -220,6 +220,7 @@ def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.9
     X = pd.get_dummies(X, columns=one_hot_encode_cols)
 
     cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
+    scaler = None
     if cols_to_scale:
         scaler = StandardScaler()
         if USE_MODEL_CACHE:
@@ -262,4 +263,38 @@ def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.9
         dump(k_means, 'data/model/{}'.format(f'{info_level}_k_means.joblib'))
         print('K_means completed in {:0.2f} min.'.format((time.perf_counter() - start_time)/60))
 
-    return pca, k_means
+    return scaler, pca, k_means
+
+def fit_k_means_final(df, meta_data, info_level, non_categorical, scaler, pca, n_cluster, USE_MODEL_CACHE=False):
+
+    if USE_MODEL_CACHE:
+        print('{}: {} - Loading the K_means from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        k_means_final = load('data/model/{}'.format(f'{info_level}_k_means_final.joblib'))
+        return k_means_final
+
+    print('{}: {} - Getting the attributes'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    info_lvl_attributes = meta_data.loc[meta_data.loc[:, 'Information level'] == info_level, 'Attribute'].unique()
+    info_lvl_attributes = list(set(info_lvl_attributes).intersection(set(df.columns)))
+
+    X = df.loc[:, info_lvl_attributes]
+
+    print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    one_hot_encode_cols = X.columns[~X.columns.isin(non_categorical)]
+    X = pd.get_dummies(X, columns=one_hot_encode_cols)
+
+    cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
+    if cols_to_scale:
+        print('{}: {} - Transform using the scaler'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        X.loc[:, cols_to_scale] = scaler.transform(X.loc[:, cols_to_scale])
+
+    # Do pca
+    print('{}: {} - Transform using the pca'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    X_txf = pca.transform(X)
+    
+    print('{}: {} - Running the K_means '.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    start_time = time.perf_counter()
+    k_means_final = KMeans(n_clusters=n_cluster, random_state=0, n_jobs=4, precompute_distances=True).fit(X_txf)
+    dump(k_means_final, 'data/model/{}'.format(f'{info_level}_k_means_final.joblib'))
+    print('K_means completed in {:0.2f} min.'.format((time.perf_counter() - start_time)/60))
+
+    return k_means_final
