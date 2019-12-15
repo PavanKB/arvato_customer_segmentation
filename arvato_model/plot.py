@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -78,3 +79,32 @@ def plot_data_dist_comp(df_popl, df_cust, col_names, n_col=4, n_row=4, fig_size=
         df_z[col].groupby(df_z['Src']).value_counts(normalize=True).rename('Proportion').reset_index().pipe(
             (sns.barplot, "data"), x=col, y='Proportion', hue='Src', hue_order=['Popl', 'Cust'],
             ax=axes.flatten()[mapping[i]])
+
+
+def plot_pca_expl_var(pca, expl_var=0.95):
+    """
+    Plots the pca var explanation curve
+    :params pca: The fitted pca object
+    :expl_var: How much of the var is to be explained.
+    """
+    cm_expl_var = np.cumsum(pca.explained_variance_ratio_)
+    n_components = (cm_expl_var <= expl_var).sum()
+
+    fig = plt.figure()
+    fig.suptitle(f'PCA {expl_var}, n={n_components}')
+    plt.plot(cm_expl_var)
+    plt.xlabel('number of components')
+    plt.ylabel('cumulative explained variance')
+    plt.axhline(y=expl_var)
+    plt.axvline(x=n_components)
+
+
+def plot_elbow(k_means):
+    """
+    Plot the elbow plot
+    :params k_means: A list of the k_means model with different clusters
+    """
+    k_means_dist = pd.DataFrame({'Dist': [k.inertia_ / k.n_clusters for k in k_means],
+                                'Clusters': [k.n_clusters for k in k_means]})
+
+    sns.pointplot(x='Clusters', y="Dist", data=k_means_dist)

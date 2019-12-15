@@ -1,6 +1,11 @@
+import time
+from datetime import datetime
 import pandas as pd
 import numpy as np
-from . import stats
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from joblib import dump, load
+from sklearn.cluster import KMeans
 
 
 def get_na_summary(df, axis=0):
@@ -127,94 +132,49 @@ def get_values_missing_count(df, na_dict):
     return missing_col_count_summary
 
 
-def data_clean_up(df, meta_data, na_col_thold=None, na_row_thold=None, diversity_thold=None):
+def read_data(file_name, meta_data):
     """
     Performs all the data clean up in one function.
-
-    NOTE: This function modifies the input df. no copies are made.
 
     1. Set 'LNR' as index
     1. Encode OST_WEST_KZ - {'O': 0, 'W': 1}
     1. Drop 'EINGEFUEGT_AM'
-    1. Drop columns that don't have meta data
     1. Replace missing values with NA,
     1. Replace GEBURTSJAHR 0 with NA
     1. Encode ANREDE_KZ, VERS_TYP  {2: 0}
 
-    1. Find NA rows and cols based on the threshold
-    1. Find columns with low diversity
-
     :params df: The data frame to be cleaned
     :params meta_data: Meta data of `df` that describes missing values
-    :params na_col_thold: NA % threshold for columns
-    :params na_row_thold: NA % threshold for rows
-    :params diversity_thold: diversity % threshold for columns
-    :return: Cleaned up data, names of columns dropped for NA, names of columns dropped for diversity,
+    :return: Cleaned up data
     """
+
+    na_dict = get_values_missing(meta_data, sep=', ')
+
+    na_dict['CAMEO_DEUG_2015'] += ['X', 'XX']
+    na_dict['CAMEO_DEU_2015'] = ['X', 'XX']
+    na_dict['CAMEO_INTL_2015'] = ['X', 'XX']
+    na_dict['GEBURTSJAHR'] = ['0']
+
+    df = pd.read_csv(file_name,
+                     sep=';',
+                     na_values=na_dict,
+                     index_col='LNR',
+                     )
 
     df.replace({'OST_WEST_KZ': {'O': 0, 'W': 1}}, inplace=True)
 
     # remove the indexing column and the time inserted column
-    df.drop(['EINGEFUEGT_AM'], axis=1, inplace=True)
-
-    # drop columns with not meta data
-    no_meta_cols = set(df.columns) - set(meta_data.Attribute)
-    df.drop(no_meta_cols, axis=1, inplace=True)
-
-    # Get the missing values and mark them as NA
-    na_dict = get_values_missing(meta_data, sep=', ')
-    na_dict = {key: [float(i) for i in val] for key, val in na_dict.items()}
-    df.replace(na_dict, pd.np.nan, inplace=True)
-
-    # Birthday cant be 0
-    df.replace({'GEBURTSJAHR': 0}, pd.np.nan, inplace=True)
+    # Due to the amount of processing needed
+    # 'LP_LEBENSPHASE_FEIN', 'LP_STATUS_FEIN', 'PRAEGENDE_JUGENDJAHRE'
+    df.drop(['EINGEFUEGT_AM', 'LP_LEBENSPHASE_FEIN', 'LP_STATUS_FEIN',
+             'PRAEGENDE_JUGENDJAHRE'], axis=1, inplace=True)
 
     # convert the binary values to 0, 1 so that we don't need one-hot encoding
     # we do this here after the missing value -> NA as 0 is a missing value for ANREDE_KZ
     df.replace({'ANREDE_KZ': {2: 0}}, inplace=True)
     df.replace({'VERS_TYP': {2: 0}}, inplace=True)
 
-    # Remove cols with missing data
-    cols_to_drop = None
-    if na_col_thold:
-        col_na_summary = get_na_summary(df)
-        cols_to_drop = col_na_summary.loc[col_na_summary.na_perc > na_col_thold, :].index
-
-    # Remove rows with missing data
-    rows_to_drop = None
-    if na_row_thold:
-        row_na_summary = get_na_summary(df, axis=1)
-        rows_to_drop = row_na_summary.loc[row_na_summary.na_perc > na_row_thold, :].index
-
-    # Remove low diversity columns - USE WITH CARE - takes forever on large data set!
-    low_div_col = None
-    if diversity_thold:
-        col_uq = df.nunique()
-        shannon_idx = df.apply(stats.shannon_diversity_index)
-        shannon_idx = shannon_idx / np.log(col_uq)
-        low_div_col = shannon_idx.loc[shannon_idx <= diversity_thold].index
-
-    return df, no_meta_cols, cols_to_drop, rows_to_drop, low_div_col
-
-
-def data_one_hot_encode(df, uq_val_thold=None):
-    """
-    This does the one hot encoding of the data
-    :params df: Data frame to be encoded
-    :params uq_val_thold: The unique value threshold for a column, beyond which it will be ignored/dropped
-    :return: The modified data frame and list of dropped columns if any
-    """
-    no_encode_cols = ['ANZ_HAUSHALTE_AKTIV', 'ANZ_HH_TITEL', 'ANZ_PERSONEN', 'ANZ_TITEL',
-                      'KBA13_ANZAHL_PKW', 'ANREDE_KZ', 'BIP_FLAG', 'GREEN_AVANTGARDE',
-                      'KBA05_SEG6', 'OST_WEST_KZ', 'VERS_TYP']
-    one_hot_encode_cols = df.columns[~df.columns.isin(no_encode_cols)]
-
-    col_to_drop = None
-    if uq_val_thold:
-        col_n_uq = df.loc[:, one_hot_encode_cols].nunique()
-        col_to_drop = col_n_uq[col_n_uq >= uq_val_thold]
-
-    return df, col_to_drop
+    return df
 
 
 def get_pca_component_wts(component_matrix, pc, sort_by='magnitude'):
@@ -231,4 +191,75 @@ def get_pca_component_wts(component_matrix, pc, sort_by='magnitude'):
         summary['abs'] = summary[label].abs()
         return summary.sort_values('abs', ascending=False).loc[:, label]
     else:
-        return summary.loc[:, label]
+        raise ValueError(f'sort_by={sort_by} not recognised. Choose +, -, magnitude')
+
+
+def pca_transform(df, pca_var=0.9):
+    pca = PCA()
+    pca.fit(df)
+
+    cm_expl_var = np.cumsum(pca.explained_variance_ratio_)
+    n_components = (cm_expl_var <= pca_var).sum()
+
+    pca = PCA(n_components=n_components)
+    pca_txf = pca.fit_transform(df)
+
+    return pca, pca_txf
+
+
+def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.90, USE_MODEL_CACHE=False):
+
+    print('{}: {} - Getting the attributes'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    info_lvl_attributes = meta_data.loc[meta_data.loc[:, 'Information level'] == info_level, 'Attribute'].unique()
+    info_lvl_attributes = list(set(info_lvl_attributes).intersection(set(df.columns)))
+
+    X = df.loc[:, info_lvl_attributes]
+
+    print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    one_hot_encode_cols = X.columns[~X.columns.isin(non_categorical)]
+    X = pd.get_dummies(X, columns=one_hot_encode_cols)
+
+    cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
+    if cols_to_scale:
+        scaler = StandardScaler()
+        if USE_MODEL_CACHE:
+            print('{}: {} - Loading the scaler from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                                  info_level))
+            scaler = load('data/model/{}'.format(f'{info_level}_scaler.joblib'))
+            X.loc[:, cols_to_scale] = scaler.transform(X.loc[:, cols_to_scale])
+        else:
+            print('{}: {} - Fitting the scaler'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+            scaler.fit(X.loc[:, cols_to_scale])
+            X.loc[:, cols_to_scale] = scaler.transform(X.loc[:, cols_to_scale])
+            dump(scaler, 'data/model/{}'.format(f'{info_level}_scaler.joblib'))
+
+    # Do pca
+    if USE_MODEL_CACHE:
+        print('{}: {} - Loading the pca from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        pca = load('data/model/{}'.format(f'{info_level}_pca.joblib'))
+        X_txf = pca.fit_transform(X)
+    else:
+        print('{}: {} - Running the pca'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        start_time = time.perf_counter()
+        pca = PCA()
+        pca.fit(X)
+        cm_expl_var = np.cumsum(pca.explained_variance_ratio_)
+        n_components = (cm_expl_var <= pca_var).sum()
+        pca = PCA(n_components)
+        pca.fit(X)
+        X_txf = pca.fit_transform(X)
+        dump(pca, 'data/model/{}'.format(f'{info_level}_pca.joblib'))
+        print('PCA completed in {:0.2f} min.'.format((time.perf_counter() - start_time) / 60))
+
+    if USE_MODEL_CACHE:
+        print('{}: {} - Loading the K_means from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        k_means = load('data/model/{}'.format(f'{info_level}_k_means.joblib'))
+    else:
+        print('{}: {} - Running the K_means '.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        start_time = time.perf_counter()
+        k_means = [KMeans(n_clusters=i, random_state=0, n_jobs=4, precompute_distances=True).fit(X_txf) for i in
+                   range(5, 35, 5)]
+        dump(k_means, 'data/model/{}'.format(f'{info_level}_k_means.joblib'))
+        print('K_means completed in {:0.2f} min.'.format((time.perf_counter() - start_time)/60))
+
+    return pca, k_means
