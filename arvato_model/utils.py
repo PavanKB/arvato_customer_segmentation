@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from joblib import dump, load
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import OneHotEncoder
 
 
 def get_na_summary(df, axis=0):
@@ -194,19 +195,6 @@ def get_pca_component_wts(component_matrix, pc, sort_by='magnitude'):
         raise ValueError(f'sort_by={sort_by} not recognised. Choose +, -, magnitude')
 
 
-def pca_transform(df, pca_var=0.9):
-    pca = PCA()
-    pca.fit(df)
-
-    cm_expl_var = np.cumsum(pca.explained_variance_ratio_)
-    n_components = (cm_expl_var <= pca_var).sum()
-
-    pca = PCA(n_components=n_components)
-    pca_txf = pca.fit_transform(df)
-
-    return pca, pca_txf
-
-
 def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.90, USE_MODEL_CACHE=False):
 
     print('{}: {} - Getting the attributes'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
@@ -215,9 +203,35 @@ def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.9
 
     X = df.loc[:, info_lvl_attributes]
 
-    print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
     one_hot_encode_cols = X.columns[~X.columns.isin(non_categorical)]
-    X = pd.get_dummies(X, columns=one_hot_encode_cols)
+    # X = pd.get_dummies(X, columns=one_hot_encode_cols)
+
+    if USE_MODEL_CACHE:
+        print('{}: {} - Loading the enc from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        enc = load('data/model/{}'.format(f'{info_level}_one_hot_enc.joblib'))
+    else:
+        print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+        # list the possible values for each attribute as an integer.
+        enc_categories = [list(meta_data.loc[(meta_data.Attribute == attrb) & (meta_data.Meaning != 'unknown'), 'Value'].astype(
+            float).sort_values()) for attrb in one_hot_encode_cols]
+        enc = OneHotEncoder(categories=enc_categories, handle_unknown='ignore')
+        enc.fit(X.loc[:, one_hot_encode_cols])
+        dump(enc, 'data/model/{}'.format(f'{info_level}_one_hot_enc.joblib'))
+
+    # reverse engineer the names
+    encoded_col_names = []
+    for i in enc.get_feature_names():
+        name_idx, val = i.replace('x', '').split('_')
+        encoded_col_names.append(one_hot_encode_cols[int(name_idx)] + '_' + val)
+
+    # build the encoded data frame
+    encoded_data = pd.DataFrame(enc.transform(X.loc[:, one_hot_encode_cols]).toarray(),
+                                index=X.index, columns=encoded_col_names)
+    X.drop(one_hot_encode_cols, axis=1, inplace=True)
+    if X.empty:
+        X = encoded_data
+    else:
+        X = X.merge(encoded_data, left_index=True, right_index=True, how='outer')
 
     cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
     scaler = None
@@ -263,9 +277,10 @@ def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.9
         dump(k_means, 'data/model/{}'.format(f'{info_level}_k_means.joblib'))
         print('K_means completed in {:0.2f} min.'.format((time.perf_counter() - start_time)/60))
 
-    return scaler, pca, k_means
+    return enc, scaler, pca, k_means
 
-def fit_k_means_final(df, meta_data, info_level, non_categorical, scaler, pca, n_cluster, USE_MODEL_CACHE=False):
+
+def fit_k_means_final(df, meta_data, info_level, non_categorical, enc, scaler, pca, n_cluster=10, USE_MODEL_CACHE=False):
 
     if USE_MODEL_CACHE:
         print('{}: {} - Loading the K_means from cache'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
@@ -280,7 +295,22 @@ def fit_k_means_final(df, meta_data, info_level, non_categorical, scaler, pca, n
 
     print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
     one_hot_encode_cols = X.columns[~X.columns.isin(non_categorical)]
-    X = pd.get_dummies(X, columns=one_hot_encode_cols)
+    # X = pd.get_dummies(X, columns=one_hot_encode_cols)
+
+    # reverse engineer the names
+    encoded_col_names = []
+    for i in enc.get_feature_names():
+        name_idx, val = i.replace('x', '').split('_')
+        encoded_col_names.append(one_hot_encode_cols[int(name_idx)] + '_' + val)
+
+    # build the encoded data frame
+    encoded_data = pd.DataFrame(enc.transform(X.loc[:, one_hot_encode_cols]).toarray(),
+                                index=X.index, columns=encoded_col_names)
+    X.drop(one_hot_encode_cols, axis=1, inplace=True)
+    if X.empty:
+        X = encoded_data
+    else:
+        X = X.merge(encoded_data, left_index=True, right_index=True, how='outer')
 
     cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
     if cols_to_scale:
@@ -298,3 +328,40 @@ def fit_k_means_final(df, meta_data, info_level, non_categorical, scaler, pca, n
     print('K_means completed in {:0.2f} min.'.format((time.perf_counter() - start_time)/60))
 
     return k_means_final
+
+
+def predict_pca_kmeans(df, meta_data, info_level, non_categorical, enc, scaler, pca, k_means):
+    print('{}: {} - Getting the attributes'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    info_lvl_attributes = meta_data.loc[meta_data.loc[:, 'Information level'] == info_level, 'Attribute'].unique()
+    info_lvl_attributes = list(set(info_lvl_attributes).intersection(set(df.columns)))
+
+    X = df.loc[:, info_lvl_attributes]
+    print('{}: {} - Performing one hot encode'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), info_level))
+    one_hot_encode_cols = X.columns[~X.columns.isin(non_categorical)]
+    # X = pd.get_dummies(X, columns=one_hot_encode_cols)
+
+    # reverse engineer the names
+    encoded_col_names = []
+    for i in enc.get_feature_names():
+        name_idx, val = i.replace('x', '').split('_')
+        encoded_col_names.append(one_hot_encode_cols[int(name_idx)] + '_' + val)
+
+    # build the encoded data frame
+    encoded_data = pd.DataFrame(enc.transform(X.loc[:, one_hot_encode_cols]).toarray(),
+                                index=X.index, columns=encoded_col_names)
+    X.drop(one_hot_encode_cols, axis=1, inplace=True)
+    if X.empty:
+        X = encoded_data
+    else:
+        X = X.merge(encoded_data, left_index=True, right_index=True, how='outer')
+
+    cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
+
+    if cols_to_scale:
+        scaler.fit(X.loc[:, cols_to_scale])
+        X.loc[:, cols_to_scale] = scaler.transform(X.loc[:, cols_to_scale])
+
+    X_txf = pca.transform(X)
+    X_txf_k = k_means.predict(X_txf)
+
+    return X_txf_k
