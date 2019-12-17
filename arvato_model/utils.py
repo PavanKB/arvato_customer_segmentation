@@ -177,7 +177,7 @@ def read_data(file_name, meta_data):
     # Drop column which is timestmap of data entry : 'MIN_GEBAEUDEJAHR'
     df.drop(['EINGEFUEGT_AM', 'LP_LEBENSPHASE_FEIN', 'LP_STATUS_FEIN',
              'PRAEGENDE_JUGENDJAHRE',
-             'D19_VERSI_OFFLINE_DATUM', 'D19_VERSI_ONLINE_DATUM', 'D19_VERSI_DATUM', 'ARBEIT'
+             'D19_VERSI_OFFLINE_DATUM', 'D19_VERSI_ONLINE_DATUM', 'D19_VERSI_DATUM', 'ARBEIT',
              'CAMEO_DEU_2015',
              'TITEL_KZ', 'KBA05_BAUMAX', 'AGER_TYP', 'GEBURTSJAHR',
              'MIN_GEBAEUDEJAHR'
