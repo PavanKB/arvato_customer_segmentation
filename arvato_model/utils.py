@@ -167,8 +167,21 @@ def read_data(file_name, meta_data):
     # remove the indexing column and the time inserted column
     # Due to the amount of processing needed
     # 'LP_LEBENSPHASE_FEIN', 'LP_STATUS_FEIN', 'PRAEGENDE_JUGENDJAHRE'
+    #
+    # Drop columns that don't have information about the attrb values
+    # 'D19_VERSI_OFFLINE_DATUM', 'D19_VERSI_ONLINE_DATUM', 'D19_VERSI_DATUM', 'ARBEIT'
+    #
+    # Too many values: 'CAMEO_DEU_2015'
+    #
+    # Drop high NA columns : 'TITEL_KZ', 'KBA05_BAUMAX', 'AGER_TYP', 'GEBURTSJAHR'
+    # Drop column which is timestmap of data entry : 'MIN_GEBAEUDEJAHR'
     df.drop(['EINGEFUEGT_AM', 'LP_LEBENSPHASE_FEIN', 'LP_STATUS_FEIN',
-             'PRAEGENDE_JUGENDJAHRE'], axis=1, inplace=True)
+             'PRAEGENDE_JUGENDJAHRE',
+             'D19_VERSI_OFFLINE_DATUM', 'D19_VERSI_ONLINE_DATUM', 'D19_VERSI_DATUM', 'ARBEIT'
+             'CAMEO_DEU_2015',
+             'TITEL_KZ', 'KBA05_BAUMAX', 'AGER_TYP', 'GEBURTSJAHR',
+             'MIN_GEBAEUDEJAHR'
+             ], axis=1, inplace=True)
 
     # convert the binary values to 0, 1 so that we don't need one-hot encoding
     # we do this here after the missing value -> NA as 0 is a missing value for ANREDE_KZ
@@ -234,6 +247,7 @@ def perform_segmentation(df, meta_data, info_level, non_categorical, pca_var=0.9
         X = X.merge(encoded_data, left_index=True, right_index=True, how='outer')
 
     cols_to_scale = set(non_categorical).intersection(set(info_lvl_attributes))
+    print('Cols to scale', cols_to_scale)
     scaler = None
     if cols_to_scale:
         scaler = StandardScaler()
@@ -381,6 +395,13 @@ def get_encoded_col_names(col_names, info_level, meta_data, non_categorical, enc
         encoded_col_names.append(one_hot_encode_cols[int(name_idx)] + '_' + val)
 
     return encoded_col_names
+
+
+def get_scaler_col_names(col_names, info_level, meta_data, non_categorical):
+    info_lvl_attributes = meta_data.loc[meta_data.loc[:, 'Information level'] == info_level, 'Attribute'].unique()
+    info_lvl_attributes = list(set(info_lvl_attributes).intersection(set(col_names)))
+
+    return list(set(non_categorical).intersection(set(info_lvl_attributes)))
 
 
 def choose_cluster(popl_k_means, customer_k_means, n=2):
