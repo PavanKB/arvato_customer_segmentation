@@ -365,3 +365,36 @@ def predict_pca_kmeans(df, meta_data, info_level, non_categorical, enc, scaler, 
     X_txf_k = k_means.predict(X_txf)
 
     return X_txf_k
+
+
+def get_encoded_col_names(col_names, info_level, meta_data, non_categorical, enc):
+
+    info_lvl_attributes = meta_data.loc[meta_data.loc[:, 'Information level'] == info_level, 'Attribute'].unique()
+    info_lvl_attributes = list(set(info_lvl_attributes).intersection(set(col_names)))
+
+    one_hot_encode_cols = list(set(info_lvl_attributes) - set(non_categorical))
+
+    # reverse engineer the names
+    encoded_col_names = []
+    for i in enc.get_feature_names():
+        name_idx, val = i.replace('x', '').split('_')
+        encoded_col_names.append(one_hot_encode_cols[int(name_idx)] + '_' + val)
+
+    return encoded_col_names
+
+
+def choose_cluster(popl_k_means, customer_k_means, n=2):
+    """
+    Given two k mean results, compare the counts for each cluster and return the ones with largest diff
+    """
+    popl_perc = pd.Series(popl_k_means).value_counts() / popl_k_means.shape[0]
+    cust_perc = pd.Series(customer_k_means).value_counts() / customer_k_means.shape[0]
+
+    return abs(popl_perc - cust_perc).sort_values(ascending=False).index.tolist()[0:n]
+
+
+def view_centroid_info(centroid, cluster=0, n=10):
+    x = centroid.loc[[cluster], :].transpose()
+    x.reset_index(inplace=True)
+    x.rename(columns={'index': 'Attribute'}, inplace=True)
+    return x.sort_values(by=cluster, ascending=False).head(n)
