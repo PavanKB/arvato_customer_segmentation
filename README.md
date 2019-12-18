@@ -1,7 +1,7 @@
 # Arvato Customer Segmentation
 
 # 1. Introduction
-###*"How can the business client acquire more customers efficiently."*
+### *"How can the business client acquire more customers efficiently."*
 In this project, we use the attributes and demographics of the existing customers and
 check against the broader population to identify new customers for our client.
 
