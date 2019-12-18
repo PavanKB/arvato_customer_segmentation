@@ -1,16 +1,14 @@
 # Arvato Customer Segmentation
 
-# Introduction
+# 1. Introduction
 ###*"How can the business client acquire more customers efficiently."*
 In this project, we use the attributes and demographics of the existing customers and
 check against the broader population to identify new customers for our client.
 
-# Files
+# 2. Files
 The project is organised as follows:
 
-
-
-## Data
+## 2.1 Data
 * `Udacity_AZDIAS_052018.csv`: Demographics data for the general population of Germany; 891 211 persons (rows) x 366 features (columns).
 * `Udacity_CUSTOMERS_052018.csv`: Demographics data for customers of a mail-order company; 191 652 persons (rows) x 369 features (columns).
 * `Udacity_MAILOUT_052018_TRAIN.csv`: Demographics data for individuals who were targets of a marketing campaign; 42 982 persons (rows) x 367 (columns).
@@ -22,89 +20,32 @@ Attributes meta data file has some data as merged cells that needs to be handled
 There also columns in data that are not represented in the meta data at all!
 We drop those columns- why> becasue we dont know how to treat them. 
 
-**TODO** Add the codes as well.
-## Code
+## 2.2 Code
 ### `arvato_model`
-Contains the functions to use for EDA, plotting and ...**ADD**
+Contains the functions to use for EDA, plotting, model training and feature extraction 
 
 1. **`plot`**
 1. **`stats`**
 1. **`utils`**
 
+### The following packages were used. Python version 3.7.5
+1. `pandas 0.25.3`
+1. `numpy 1.17.4`
+1. `matplotlib 3.1.1`
+1. `seaborn 0.9.0`
+1. `sklearn 0.21.3`
+1. `scipy 1.3.1`
+1. `feather`
+1. `joblib`
 
-### Packages used
-1. `pandas`
-1. `numpy`
-1. `matplotlib`
-1. `seaborn`
+# 3. How do we run the code?
+The entire journey of data extraction, EDA, identifying cluster and training the classification
+model have been coded into the Jupyter notebook. 
 
+When running the for the first time, ensure that `USE_CACHE` and `USE_MODEL_CACHE` are set to `False`
 
-
-How do we run the code?
-
-# EDA
-
-
-Explore the data
-
-Plots etc
-NA analysis
-Correlation?
-Uniqueness of the data in each columns
-- Shannon
-- Simpson 
+The notebook saves the intermediate data sets and the fitted transforms as the code progress.
+Subsequent runs can then use these cached values.
+  
 
 
-# CleanUP
-1. Fix the error of 18, 19 columns.
-```python
-/opt/conda/lib/python3.6/site-packages/IPython/core/interactiveshell.py:2785: DtypeWarning: Columns (18,19) have mixed types. Specify dtype option on import or set low_memory=False.
-  interactivity=interactivity, compiler=compiler, result=result)
-```
-We forced all columns to be of type str and checked the unique values for columns
-18 and 19 in azdias and customer.  Turns out there are X, XX. We shall force them to be NA
-
-For the columns that are binary as per meta data - turn them to 0, 1 
-Also there is `OST_WEST_KZ` O,W
-
-Look for mixed types.
-
-1. NA Clean Up
-1. Drop the non-diverse columns.
-1. Drop the correlated columns. (use spearman)
-1. One-hot encoding
-
-# Dimensionality Reduction
-
-# Decide on the ML algo for customer segmentation
-1. K-means clustering
-1. Hierarchical clustering
-1. SVD
-1. PCA
-
-Combined?
-
-The challenge is how do we identify the factors which differentiate the
-customers from the population.
-1. Do a pairwise correlation of each column between data sets?
-1. Can we use PCA to see which factors explain the difference?
-1. What about latent variables?
-
-
-# Testing
-Test and Train data split
-Grid search for the best  - K-Fold
-
-Give the metrics
-Give the ROC
-
-# Applications
-Must be able to run from command prompt.  
-
-
-# References
-1. https://medium.com/machine-learning-for-humans/unsupervised-learning-f45587588294
-1. http://andrew.gibiansky.com/blog/mathematics/cool-linear-algebra-singular-value-decomposition/
-1. http://www.tiem.utk.edu/~gross/bioed/bealsmodules/simpsonDI.html
-1. http://www.tiem.utk.edu/~gross/bioed/bealsmodules/shannonDI.html
- 
